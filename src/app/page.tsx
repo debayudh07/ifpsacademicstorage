@@ -15,7 +15,7 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
 import { Label } from "@/components/ui/label"
-import { FileText, Calendar } from 'lucide-react'
+import { FileText, Calendar, User, Wallet, Power, PowerOff } from 'lucide-react'
 
 // ABI of the AcademicRecords contract (you need to replace this with the actual ABI)
 const ABI = [
@@ -233,13 +233,16 @@ export default function AcademicRecordsApp() {
   const [provider, setProvider] = useState<ethers.BrowserProvider | null>(null);
   const [contract, setContract] = useState<ethers.Contract | null>(null);
   const [account, setAccount] = useState<string | null>(null);
+  const [balance, setBalance] = useState<string | null>(null);
   const [records, setRecords] = useState<any[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
+  const [isConnected, setIsConnected] = useState(false);
   
-  useEffect(() => {
-    const init = async () => {
-      if (typeof window.ethereum !== 'undefined') {
+  const connectWallet = async () => {
+    if (typeof window.ethereum !== 'undefined') {
+      try {
+        await window.ethereum.request({ method: 'eth_requestAccounts' });
         const provider = new ethers.BrowserProvider(window.ethereum);
         const signer = await provider.getSigner();
         const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
@@ -250,11 +253,38 @@ export default function AcademicRecordsApp() {
         const accounts = await provider.send('eth_requestAccounts', []);
         setAccount(accounts[0]);
   
+        const balance = await provider.getBalance(accounts[0]);
+        setBalance(ethers.formatEther(balance));
+  
         await fetchRecords(accounts[0], contract);
+        setIsConnected(true);
+      } catch (error) {
+        console.error('Failed to connect wallet:', error);
+      }
+    } else {
+      console.log('Please install MetaMask!');
+    }
+  };
+
+  const disconnectWallet = () => {
+    setProvider(null);
+    setContract(null);
+    setAccount(null);
+    setBalance(null);
+    setRecords([]);
+    setIsConnected(false);
+  };
+
+  useEffect(() => {
+    const checkConnection = async () => {
+      if (typeof window.ethereum !== 'undefined') {
+        const accounts = await window.ethereum.request({ method: 'eth_accounts' });
+        if (accounts.length > 0) {
+          await connectWallet();
+        }
       }
     };
-  
-    init();
+    checkConnection();
   }, []);
 
   const fetchRecords = async (address: string, contract: ethers.Contract) => {
@@ -328,58 +358,97 @@ export default function AcademicRecordsApp() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-400 to-blue-600 p-4 sm:p-6 md:p-8">
-      <Card className="w-full max-w-lg mx-auto bg-white/90 backdrop-blur-sm shadow-xl">
-        <CardHeader>
-          <CardTitle className="text-2xl sm:text-3xl font-bold text-blue-900">Academic Records</CardTitle>
-          <CardDescription className="text-sm sm:text-base text-blue-700">Manage your academic records on the blockchain</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-4">
-            <Label htmlFor="file" className="text-sm sm:text-base text-blue-900">Upload File</Label>
-            <Input id="file" type="file" onChange={handleFileChange} className="mt-1 border-blue-300 focus:border-blue-500 text-sm sm:text-base" />
-          </div>
-          <Button onClick={addRecord} disabled={!file || loading} className="w-full sm:w-auto bg-blue-500 hover:bg-blue-600 text-white text-sm sm:text-base py-2 px-4">
-            {loading ? 'Processing...' : 'Add Record'}
-          </Button>
-        </CardContent>
-      </Card>
+    <div className="min-h-screen bg-black p-4 sm:p-6 md:p-8 flex flex-col">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <Card className="bg-gray-900 shadow-xl border border-cyan-500">
+          <CardHeader className="flex flex-row items-center justify-between">
+            <CardTitle className="text-xl sm:text-2xl font-bold text-cyan-400">Account Information</CardTitle>
+            {isConnected ? (
+              <Button onClick={disconnectWallet} className="bg-red-600 hover:bg-red-700 text-white">
+                <PowerOff className="w-4 h-4 mr-2" /> Disconnect
+              </Button>
+            ) : (
+              <Button onClick={connectWallet} className="bg-green-600 hover:bg-green-700 text-white">
+                <Power className="w-4 h-4 mr-2" /> Connect
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent>
+            {isConnected ? (
+              <>
+                <div className="flex items-center mb-2">
+                  <User className="w-5 h-5 mr-2 text-cyan-400" />
+                  <p className="text-sm sm:text-base text-white">
+                    {account ? `${account.slice(0, 6)}...${account.slice(-4)}` : 'Not connected'}
+                  </p>
+                </div>
+                <div className="flex items-center">
+                  <Wallet className="w-5 h-5 mr-2 text-cyan-400" />
+                  <p className="text-sm sm:text-base text-white">
+                    {balance ? `${parseFloat(balance).toFixed(4)} ETH` : 'N/A'}
+                  </p>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm sm:text-base text-white">Please connect your wallet to view account information.</p>
+            )}
+          </CardContent>
+        </Card>
+        <Card className="bg-gray-900 shadow-xl border border-cyan-500">
+          <CardHeader>
+            <CardTitle className="text-xl sm:text-2xl font-bold text-cyan-400">Add New Record</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-4">
+              <Label htmlFor="file" className="text-sm sm:text-base text-cyan-300">Upload File</Label>
+              <Input id="file" type="file" onChange={handleFileChange} className="mt-1 bg-gray-800 border-cyan-500 focus:border-cyan-400 text-white text-sm sm:text-base" disabled={!isConnected} />
+            </div>
+            <Button onClick={addRecord} disabled={!file || loading || !isConnected} className="w-full bg-cyan-600 hover:bg-cyan-700 text-white text-sm sm:text-base py-2 px-4">
+              {loading ? 'Processing...' : 'Add Record'}
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
 
-      <div className="mt-8 w-full max-w-lg mx-auto">
-        <h2 className="text-xl sm:text-2xl font-bold mb-4 text-white">Your Records</h2>
-        {records.map((record, index) => (
-          <Card key={index} className="mb-4 bg-blue-100 hover:bg-blue-200 transition-colors duration-200 shadow-md">
-            <CardContent className="p-3 sm:p-4">
-              <div className="flex items-center mb-2">
-                <FileText className="w-5 h-5 mr-2 text-blue-600" />
-                <p className="text-sm sm:text-base text-blue-900 font-semibold">Record {index + 1}</p>
-              </div>
-              <div className="flex items-center">
-                <Calendar className="w-4 h-4 mr-2 text-blue-600" />
-                <p className="text-xs sm:text-sm text-blue-700">
-                  {new Date(Number(record.timestamp) * 1000).toLocaleString()}
-                </p>
-              </div>
-            </CardContent>
-            <CardFooter className="bg-blue-50 p-3 sm:p-4 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
-              <Button 
-                onClick={() => editRecord(record.txHash)} 
-                disabled={!file || loading} 
-                className="w-full sm:w-auto bg-blue-500 hover:bg-blue-600 text-white text-sm py-2 px-4"
-              >
-                Edit
-              </Button>
-              <Button 
-                onClick={() => deleteRecord(record.txHash)} 
-                disabled={loading} 
-                variant="destructive" 
-                className="w-full sm:w-auto bg-red-500 hover:bg-red-600 text-white text-sm py-2 px-4"
-              >
-                Delete
-              </Button>
-            </CardFooter>
-          </Card>
-        ))}
+      <h2 className="text-xl sm:text-2xl font-bold mb-4 text-cyan-400">Your Records</h2>
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 flex-grow overflow-auto">
+        {isConnected ? (
+          records.map((record, index) => (
+            <Card key={index} className="bg-gray-800 hover:bg-gray-700 transition-colors duration-200 shadow-md border border-cyan-600 flex flex-col">
+              <CardContent className="p-3 sm:p-4 flex-grow">
+                <div className="flex items-center mb-2">
+                  <FileText className="w-5 h-5 mr-2 text-cyan-400" />
+                  <p className="text-sm sm:text-base text-white font-semibold">Record {index + 1}</p>
+                </div>
+                <div className="flex items-center">
+                  <Calendar className="w-4 h-4 mr-2 text-cyan-400" />
+                  <p className="text-xs sm:text-sm text-cyan-200">
+                    {new Date(Number(record.timestamp) * 1000).toLocaleString()}
+                  </p>
+                </div>
+              </CardContent>
+              <CardFooter className="bg-gray-900 p-3 sm:p-4 flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2">
+                <Button 
+                  onClick={() => editRecord(record.txHash)} 
+                  disabled={!file || loading} 
+                  className="w-full sm:w-auto bg-cyan-600 hover:bg-cyan-700 text-white text-sm py-2 px-4"
+                >
+                  Edit
+                </Button>
+                <Button 
+                  onClick={() => deleteRecord(record.txHash)} 
+                  disabled={loading} 
+                  variant="destructive" 
+                  className="w-full sm:w-auto bg-red-600 hover:bg-red-700 text-white text-sm py-2 px-4"
+                >
+                  Delete
+                </Button>
+              </CardFooter>
+            </Card>
+          ))
+        ) : (
+          <p className="text-white col-span-full text-center">Please connect your wallet to view your records.</p>
+        )}
       </div>
     </div>
   );
