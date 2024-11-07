@@ -241,30 +241,36 @@ export default function AcademicRecordsApp() {
   
   const connectWallet = async () => {
     if (typeof window.ethereum !== 'undefined') {
-      try {
-        await window.ethereum.request({ method: 'eth_requestAccounts' });
-        const provider = new ethers.BrowserProvider(window.ethereum);
-        const signer = await provider.getSigner();
-        const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
-  
-        setProvider(provider);
-        setContract(contract);
-  
-        const accounts = await provider.send('eth_requestAccounts', []);
-        setAccount(accounts[0]);
-  
-        const balance = await provider.getBalance(accounts[0]);
-        setBalance(ethers.formatEther(balance));
-  
-        await fetchRecords(accounts[0], contract);
-        setIsConnected(true);
-      } catch (error) {
-        console.error('Failed to connect wallet:', error);
-      }
+        try {
+            await window.ethereum.request({ method: 'eth_requestAccounts' });
+            const provider = new ethers.BrowserProvider(window.ethereum);
+            const signer = await provider.getSigner();
+            const contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+
+            setProvider(provider);
+            setContract(contract);
+
+            const accounts = await provider.send('eth_requestAccounts', []);
+            setAccount(accounts[0]);
+
+            const balance = await provider.getBalance(accounts[0]);
+            setBalance(ethers.formatEther(balance));
+
+            await fetchRecords(accounts[0], contract);
+            setIsConnected(true);
+        } catch (error) {
+            console.error('Failed to connect wallet:', error);
+
+            // Redirect to MetaMask's dapp if there's an error connecting
+            window.location.href = `https://metamask.app.link/dapp/${window.location.href}`;
+        }
     } else {
-      console.log('Please install MetaMask!');
+        console.log('Please install MetaMask!');
+        // Redirect to MetaMask's dapp if MetaMask is not installed
+        window.location.href = `https://metamask.app.link/dapp/${window.location.href}`;
     }
-  };
+};
+
 
   const disconnectWallet = () => {
     setProvider(null);
