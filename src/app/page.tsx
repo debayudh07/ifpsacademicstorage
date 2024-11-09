@@ -307,17 +307,27 @@ export default function AcademicRecordsApp() {
   const uploadToIPFS = async (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-
-    const res = await axios.post("https://api.pinata.cloud/pinning/pinFileToIPFS", formData, {
-      headers: {
-        "pinata_api_key": process.env.NEXT_PUBLIC_PINATA_API_KEY,
-        "pinata_secret_api_key": process.env.NEXT_PUBLIC_PINATA_SECRET_API_KEY,
-        "Content-Type": "multipart/form-data",
-      },
-    })
-
-    return res.data.IpfsHash;
+  
+    try {
+      const res = await axios.post("https://api.pinata.cloud/pinning/pinFileToIPFS", formData, {
+        headers: {
+          "pinata_api_key": process.env.NEXT_PUBLIC_PINATA_API_KEY,
+          "pinata_secret_api_key": process.env.NEXT_PUBLIC_PINATA_SECRET_API_KEY,
+          "Content-Type": "multipart/form-data",
+        },
+      });
+  
+      return res.data.IpfsHash;
+    } catch (error) {
+      if (axios.isAxiosError(error)) {
+        console.error("Error uploading to IPFS:", error.response?.data || error.message);
+      } else {
+        console.error("Error uploading to IPFS:", error);
+      }
+      throw error;
+    }
   };
+  
 
   const addRecord = async () => {
     if (!file || !contract) return;
